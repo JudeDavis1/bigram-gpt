@@ -46,7 +46,7 @@ class BigramLanguageModel(nn.Module):
         self.transformer_model_name = f'models/BT-{n_head}Head-{n_layers}Layer.pt'
         
         # each token directly reads off the logits for the next token from a lookup table
-        self.token_embedding_table = nn.Embedding(vocab_size, n_embd)
+        self.token_embedding_table = nn.Embedding(dataset.vocab_size, n_embd)
         self.position_embedding_table = nn.Embedding(block_size, n_embd)
         self.blocks = nn.Sequential(*[
             Block(
@@ -56,7 +56,7 @@ class BigramLanguageModel(nn.Module):
          
         # final layer norm
         self.ln_f = nn.LayerNorm(n_embd)
-        self.lm_head = nn.Linear(n_embd, vocab_size)
+        self.lm_head = nn.Linear(n_embd, dataset.vocab_size)
 
 
     def forward(self, idx, targets=None):
@@ -68,7 +68,7 @@ class BigramLanguageModel(nn.Module):
         x = token_embed + pos_embed # (B, T, C)
         x = self.blocks(x) # (B, T, C)
         x = self.ln_f(x) # (B, T, C)
-        logits = self.lm_head(x) # (B, T, vocab_size)
+        logits = self.lm_head(x) # (B, T, dataset.vocab_size)
 
         if targets is None:
             loss = None
@@ -98,7 +98,7 @@ class BigramLanguageModel(nn.Module):
             idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
             if display:
                 scalar_idx = idx_next.flatten().to(cpu_dev).tolist()
-                sys.stdout.write(decode(scalar_idx))
+                sys.stdout.write(dataset.decode(scalar_idx) + ' ')
                 sys.stdout.flush()
         
         if display: print()

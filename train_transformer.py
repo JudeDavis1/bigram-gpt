@@ -1,5 +1,6 @@
 import os
 import sys
+import random
 
 from tqdm import tqdm
 from torch.backends import mps
@@ -24,10 +25,10 @@ if mps.is_built():
 
 
 # train and test splits
-data = torch.tensor(encode(text), dtype=torch.long)
-n = int(0.9 * len(data))
-train_data = data[:n]
-val_data = data[n:]
+# data = torch.tensor(encode(text), dtype=torch.long)
+# n = int(0.9 * len(data))
+# train_data = data[:n]
+# val_data = data[n:]
 
 # model with hyperparams
 model = BigramLanguageModel(
@@ -104,20 +105,18 @@ def get_val_loss(model: BigramLanguageModel, eval_iters=50) -> float:
     return val_loss
 
 
-def get_batch(split: str):
-    """Generate a small batch of data of inputs x and targets y"""
+# data loading
+def get_batch(*args, **kwargs):
+    x = []
+    y = []
+    batch = [random.choice(dataset) for _ in range(batch_size)]
 
-    split = split.lower()
-    assert split in ['val', 'train'], 'Split must be either \'val\' or \'train\''
-
-    data = train_data if split == 'train' else val_data
-
-    # subtracting block_size because we may go over len(data) for the y set
-    max_idx = len(data) - model.block_size
-    ix = torch.randint(max_idx, (batch_size,))
-    x = torch.stack([data[i: i + model.block_size] for i in ix])
-    y = torch.stack([data[i + 1: i + 1 + model.block_size] for i in ix])
-    x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+    for a, b in batch:
+        x.append(a)
+        y.append(b)
+    
+    x = torch.stack(x).to(device, non_blocking=True)
+    y = torch.stack(y).to(device, non_blocking=True)
 
     return x, y
 
