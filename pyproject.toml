@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "src"
+version = "0.1.0"
+description = "Your project description"
+authors = ["Your Name <you@example.com>"]
+license = "Your License"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+tqdm = "*"
+matplotlib = "*"
+numpy = "*"
+colorama = "*"
+bs4 = "*"
+pytest = "*"
+nltk = "*"
+argparse = "*"
+importlib-resources = "*"
+python-dotenv = "*"
+tokenizers = "*"
+zipp = "*"
+chardet = "*"
+torch = "*"
+lightning = "*"
+aiohttp = "*"
+
+[tool.poetry.dev-dependencies]
+autoflake = "*"
+flake8 = "*"
+black = "*"
+isort = "*"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+linter = "scripts:linter"
+train = "src.model.train:main"
+eval = "src.model.evaluate:main"
+scrape-bible = "src.dataset.get_bible_verses:main"
+scrape-wiki = "src.dataset.crawler:test"

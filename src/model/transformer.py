@@ -6,13 +6,14 @@ All relevant modules for the transformer architecture.
 
 import os
 import sys
-from typing import Optional
+from typing import Optional, overload
 
 import lightning as pl
 import torch
 import torch.nn as nn
 from lightning.pytorch.utilities.types import STEP_OUTPUT, OptimizerLRScheduler
 from torch.nn import functional as F
+from typing_extensions import override
 
 from src.model.rope import apply_rotary_emb, precompute_freqs_cis, repeat_kv
 
@@ -53,7 +54,7 @@ class TransientRunner(pl.LightningModule):
         self.cache_dir = "./model_cache"
         self.transformer_model_name = f"./models/BT-{n_heads}Head-{n_layers}Layer.pt"
 
-        self.model = TransformerModel(
+        self.model: nn.Module = TransformerModel(
             block_size=self.block_size,
             n_embd=self.n_embd,
             n_layers=self.n_layers,
@@ -63,8 +64,8 @@ class TransientRunner(pl.LightningModule):
             batch_size=batch_size,
         ).apply(self._init_weights)
 
-    def forward(
-        self, x: torch.Tensor, targets: torch.Tensor = None, start_pos=0
+    def forward(  # type: ignore
+        self, x: torch.Tensor, targets: Optional[torch.Tensor] = None, start_pos=0
     ) -> torch.Tensor:
         return self.model(x, targets=targets, start_pos=start_pos, device=self.m_device)
 
@@ -101,7 +102,7 @@ class TransientRunner(pl.LightningModule):
         self,
         idx: torch.Tensor,
         max_new_tokens: int,
-        temperature: int = 0.5,
+        temperature: float = 0.5,
         display=False,
         greedy=True,
     ):
@@ -150,10 +151,10 @@ class TransientRunner(pl.LightningModule):
         self.model = self.model.to(device)
         logger.info(f"Using {str(device).upper()} backend...")
 
-    def load(self, load_cache=None, **kwargs):
+    def load(self, load_cache: Optional[str] = None, **kwargs):
         logger.info("[*] Loading model:", self.transformer_model_name)
 
-        if os.path.exists(load_cache):
+        if load_cache and os.path.exists(load_cache):
             # load the uncompressed copy
             self.model.load_state_dict(torch.load(load_cache, **kwargs))
 
@@ -242,9 +243,7 @@ class TransformerModel(nn.Module):
 
         mask = None
         if T > 1:
-            mask = torch.full(
-                (T, T), float("-inf"), device=idx.device
-            )
+            mask = torch.full((T, T), float("-inf"), device=idx.device)
 
             mask = torch.triu(mask, diagonal=1)
 
@@ -252,16 +251,15 @@ class TransformerModel(nn.Module):
             # only for the new sequence. Thus, the matrix of scores is of size
             # (T, cache_len + T), and the only masked entries are (i, j) for
             # j > cache_len + i, since row i corresponds to token cache_len + i.
-            mask = torch.hstack([
-                torch.zeros((T, start_pos), device=idx.device),
-                mask
-            ]).type_as(token_embed)
+            mask = torch.hstack(
+                [torch.zeros((T, start_pos), device=idx.device), mask]
+            ).type_as(token_embed)
             # print(mask); exit(0)
 
         x: torch.Tensor = token_embed
         for block in self.blocks:
             x = block(x, freqs_cis=freqs_cis, start_pos=start_pos, mask=mask)
-        
+
         x: torch.Tensor = self.dec_dropout(self.ln_f(x))  # (B, T, C)
         logits: torch.Tensor = self.lm_head(x)  # (B, T, dataset.vocab_size)
 
@@ -271,7 +269,7 @@ class TransformerModel(nn.Module):
             targets = targets.view(B * T)
 
             loss = F.cross_entropy(logits, targets)
-            
+
         else:
             loss = None
 
@@ -343,7 +341,11 @@ class MultiHeadAttention(nn.Module):
         )
 
     def forward(
-        self, x: torch.Tensor, freqs_cis: torch.Tensor, start_pos: int, mask: torch.Tensor
+        self,
+        x: torch.Tensor,
+        freqs_cis: torch.Tensor,
+        start_pos: int,
+        mask: torch.Tensor,
     ) -> torch.Tensor:
         B, T, C = x.shape
 
@@ -386,24 +388,32 @@ class MultiHeadAttention(nn.Module):
         out = self.dropout(self.proj(out))
 
         return out
-    
+
     def _resize_cache(self, batch_size, new_size):
         """Resize the key and value cache tensors if necessary."""
-        
+
         if new_size < self.cache_k.size(1):
             return
-        
+
         # Determine the new cache size
-        new_cache_size = max(new_size, self.cache_k.size(1) * 2)  # Resize to double the current size or the new size, whichever is larger
+        new_cache_size = max(
+            new_size, self.cache_k.size(1) * 2
+        )  # Resize to double the current size or the new size, whichever is larger
 
         # Resize key cache
-        new_cache_k = torch.zeros(batch_size, new_cache_size, self.n_heads, self.cache_k.size(3), device=self.cache_k.device)
-        new_cache_k[:, :self.cache_k.size(1)] = self.cache_k
+        new_cache_k = torch.zeros(
+            batch_size,
+            new_cache_size,
+            self.n_heads,
+            self.cache_k.size(3),
+            device=self.cache_k.device,
+        )
+        new_cache_k[:, : self.cache_k.size(1)] = self.cache_k
         self.cache_k = new_cache_k
 
         # Resize value cache
         new_cache_v = torch.zeros_like(new_cache_k)
-        new_cache_v[:, :self.cache_v.size(1)] = self.cache_v
+        new_cache_v[:, : self.cache_v.size(1)] = self.cache_v
         self.cache_v = new_cache_v
 
 
