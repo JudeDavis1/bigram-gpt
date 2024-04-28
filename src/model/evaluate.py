@@ -1,48 +1,51 @@
 import sys
-import os
+
+import torch
 
 from src import logger
-from src.config import Config
-from src.model.transformer import *
+from src.config import config
+from src.model.transformer import TransientRunner, dataset
+
+WARMUP = True
+
+# torch._C._jit_set_profiling_mode(False)
 
 
 def main():
-    mode = None
-    if len(sys.argv) > 2:
-        mode = sys.argv[2]
-
-    os.environ['TOKENIZERS_PARALLELISM'] = "false"
     with torch.no_grad():
-        cpu_device = torch.device("cuda")
+        device = "cuda"
         runner = TransientRunner(
-            block_size=Config.BLOCK_SIZE,
-            n_embd=Config.N_EMBD,
-            n_layers=Config.N_LAYERS,
-            n_heads=Config.N_HEADS,
+            block_size=config.BLOCK_SIZE,
+            n_embd=config.N_EMBD,
+            n_layers=config.N_LAYERS,
+            n_heads=config.N_HEADS,
         )
-        runner.to_device(cpu_device)
+        runner.to_device(device)
 
         fname = sys.argv[2]
         logger.INFO("Loading", fname)
-        
-        runner.load(fname, map_location=cpu_device)
+
+        runner.load(fname, map_location=device)
         runner.model.eval()
+
+        # runner.compile_model()
 
         # accuracy = runner.score_accuracy(dataset, n_samples=100)
         # logger.info(f"Accuracy: {accuracy}")
 
-        while True:
-            context_str = input("> ")
-            context = torch.tensor([dataset.encode(dataset.tokenize(context_str))])
+        with torch.jit.optimized_execution(True):
+            while True:
+                context_str = input("> ")
+                context = torch.tensor([dataset.encode(dataset.tokenize(context_str))])
 
-            logger.info(context_str, end='')
-            runner.generate(
-                context.to(cpu_device),
-                max_new_tokens=int(sys.argv[1]),
-                display=True,
-                temperature=0.8,
-                greedy=False,
-            )
+                logger.info(context_str, end="")
+                runner.generate(
+                    context.to(device),
+                    max_new_tokens=int(sys.argv[1]),
+                    display=True,
+                    temperature=0.7,
+                    greedy=False,
+                )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,14 @@
 class Config:
-    N_HEADS = 12
-    N_LAYERS = 12
-    N_EMBD = 768
-    BLOCK_SIZE = 1024
+<<<<<<< Updated upstream
+    N_HEADS = 24
+    N_LAYERS = 24
+    N_EMBD = 1200
+=======
+    N_HEADS = 6
+    N_LAYERS = 6
+    N_EMBD = 384
+>>>>>>> Stashed changes
+    BLOCK_SIZE = 256
+
+
+config = Config()
